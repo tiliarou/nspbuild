@@ -8,12 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
-)
-
-const (
-	VERSION = "1.0"
 )
 
 type release struct {
@@ -32,14 +27,7 @@ type nacp struct {
 }
 
 func printHelpAndExit() {
-	lines := []string{
-		fmt.Sprintf("nspbuild v%s by Pika", VERSION),
-		"usage: nspbuild <path/to/nso> <name> <author> <version> <path/to/icon/jpg> <tid>",
-	}
-
-	for _, v := range lines {
-		fmt.Printf("%s\n", v)
-	}
+	fmt.Printf("usage: nspbuild <path/to/nso> <name> <author> <version> <path/to/icon/jpg> <tid>\n")
 
 	os.Exit(0)
 }
@@ -105,26 +93,11 @@ func main() {
 	linkle, err := getRelease("MegatonHammer/linkle")
 	chkErr(err)
 
-	s := ""
-	if runtime.GOOS == "windows" && runtime.GOARCH == "amd64" {
-		s = "x86_64-pc-windows-msvc.zip"
-	}
-
-	if s == "" {
-		fmt.Printf("error: nspbuild does not support this os/arch as of now, exiting...\n")
-		os.Exit(1)
-	}
-
 	url := ""
 	for _, v := range linkle.Assets {
-		if strings.HasSuffix(v.URL, s) {
+		if strings.HasSuffix(v.URL, "x86_64-pc-windows-msvc.zip") {
 			url = v.URL
 		}
-	}
-
-	if url == "" {
-		fmt.Printf("error: could not find a linke build for your os/arch, exiting...\n")
-		os.Exit(1)
 	}
 
 	chkErr(download(url, "build/linkle.zip"))
@@ -134,7 +107,7 @@ func main() {
 	hbp, err := getRelease("The-4n/hacBrewPack")
 	chkErr(err)
 
-	chkErr(download(hbp.Assets[0].URL, "build/hbp.zip"))
+	chkErr(download(hbp.Assets[1].URL, "build/hbp.zip"))
 
 	chkErr(unzipFile("build/hbp.zip", "hacbrewpack.exe", "build/hbp.exe"))
 
@@ -143,7 +116,7 @@ func main() {
 
 	chkErr(os.MkdirAll("build/exefs", 0700))
 
-	chkErr(copy(args["nso"], "build/exefs/main"))
+	chkErr(copyFile(args["nso"], "build/exefs/main"))
 
 	resp, err := http.Get("https://raw.githubusercontent.com/switchbrew/nx-hbloader/master/hbl.json")
 	chkErr(err)
@@ -169,10 +142,10 @@ func main() {
 	chkErr(os.MkdirAll("build/control", 0700))
 
 	gen := nacp{
-		Name:    args["name"],
-		Author:  args["author"],
-		Version: args["version"],
-		TitleID: strings.ToLower(args["tid"]),
+		args["name"],
+		args["author"],
+		args["version"],
+		strings.ToLower(args["tid"]),
 	}
 
 	nacp, err := os.Create("build/nacp.json")
@@ -210,11 +183,11 @@ func main() {
 		}
 
 		for _, v := range languages {
-			chkErr(copy(args["icon"], fmt.Sprintf("build/control/icon_%s.dat", v)))
+			chkErr(copyFile(args["icon"], fmt.Sprintf("build/control/icon_%s.dat", v)))
 		}
 	}
 
-	chkErr(copy("keys.txt", "build/keys.dat"))
+	chkErr(copyFile("keys.txt", "build/keys.dat"))
 
 	cmd = exec.Command(".\\hbp", "--noromfs", "--nologo")
 	cmd.Dir = "build/"
@@ -222,8 +195,8 @@ func main() {
 
 	chkErr(os.MkdirAll("out/", 0700))
 
-	chkErr(copy(fmt.Sprintf("build/hacbrewpack_nsp/%s.nsp", strings.ToLower(args["tid"])),
-		fmt.Sprintf("out/%s [%s].nsp", args["name"], strings.ToLower(args["tid"]))))
+	chkErr(copyFile(fmt.Sprintf("build/hacbrewpack_nsp/%s.nsp", strings.ToLower(args["tid"])),
+		fmt.Sprintf("out/%s.nsp", args["name"])))
 
 	chkErr(os.RemoveAll("build/"))
 }
