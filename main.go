@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -32,22 +31,22 @@ func printHelpAndExit() {
 	os.Exit(0)
 }
 
-func getRelease(repo string) (release, error) {
+func getRelease(repo string) (*release, error) {
 	resp, err := http.Get(fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo))
 	if err != nil {
-		return release{}, err
+		return nil, err
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return release{}, err
+		return nil, err
 	}
 	resp.Body.Close()
 
-	r := release{}
-	err = json.Unmarshal(body, &r)
+	r := &release{}
+	err = json.Unmarshal(body, r)
 	if err != nil {
-		return release{}, err
+		return nil, err
 	}
 
 	return r, nil
@@ -124,15 +123,18 @@ func main() {
 	npdm, err := os.Create("build/npdm.json")
 	chkErr(err)
 
-	scanner := bufio.NewScanner(resp.Body)
+	replacer := strings.NewReplacer("hbloader", args["name"], "0x010000000000100D",
+		"0x"+strings.ToLower(args["tid"]), "\"application_type\"   : 2", "\"application_type\"   : 1")
 
-	replacer := strings.NewReplacer("hbloader", args["name"], "0x010000000000100D", "0x"+strings.ToLower(args["tid"]))
+	body, err := ioutil.ReadAll(resp.Body)
+	chkErr(err)
+	resp.Body.Close()
 
-	for scanner.Scan() {
-		npdm.WriteString(replacer.Replace(scanner.Text()) + "\n")
+	for _, v := range strings.Split(string(body), "\n") {
+		_, err = npdm.WriteString(replacer.Replace(v))
+		chkErr(err)
 	}
 
-	resp.Body.Close()
 	npdm.Close()
 
 	cmd := exec.Command(".\\npdmtool", "npdm.json", "exefs/main.npdm")
